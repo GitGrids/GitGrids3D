@@ -1,0 +1,1568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Interactive 3D Particle Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&family=Noto+Sans+SC&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: 'Noto Sans', 'Noto Sans JP', 'Noto Sans SC', 'Arial', sans-serif;
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #controls {
+            position: absolute;
+            top: 0;
+            left: -320px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 15px;
+            width: 280px;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            transition: left 0.3s ease-in-out;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        #controls::-webkit-scrollbar {
+            display: none;
+        }
+        #controls:hover::-webkit-scrollbar {
+            display: block;
+            width: 8px;
+        }
+        #controls::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        #controls::-webkit-scrollbar-thumb {
+            background: #fff;
+            border-radius: 4px;
+        }
+        #controls.active {
+            left: 0;
+        }
+        #controls > * {
+            direction: ltr;
+        }
+        .category {
+            margin-bottom: 20px;
+        }
+        .category h3 {
+            color: #00ccff;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        #controls label {
+            display: block;
+            margin: 8px 0;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        #controls select, #controls input[type="range"], #controls input[type="color"], #controls input[type="file"], #controls button {
+            margin: 6px 0;
+            padding: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+        #controls select {
+            background: #1a1a1a;
+            color: white;
+            border: 1px solid #fff;
+            border-radius: 10px;
+            padding: 6px;
+            font-size: 13px;
+        }
+        #controls input[type="range"] {
+            -webkit-appearance: none;
+            background: transparent;
+            height: 8px;
+        }
+        #controls input[type="range"]::-webkit-slider-runnable-track {
+            height: 3px;
+            background: #fff;
+            border-radius: 1.5px;
+        }
+        #controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border-radius: 50%;
+            margin-top: -5.5px;
+            cursor: pointer;
+            box-shadow: 0 0 4px rgba(255,255,255,0.5);
+        }
+        #controls button {
+            background: #1a1a1a;
+            color: white;
+            border: 1px solid #fff;
+            border-radius: 10px;
+            padding: 8px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        #controls button:hover:not(:disabled) {
+            background: #333;
+        }
+        #controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #timer, #particleSizeValue, #trailLengthValue, #lowPassValue, #highPassValue {
+            font-size: 13px;
+            margin: 8px 0;
+            color: #00ccff;
+        }
+        #menu-toggle {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            cursor: pointer;
+            padding: 10px;
+        }
+        #menu-toggle .bar {
+            width: 25px;
+            height: 3px;
+            background: #fff;
+            margin: 5px 0;
+            transition: transform 0.3s, opacity 0.3s;
+        }
+        #menu-toggle.active .bar:nth-child(1) {
+            transform: translateY(8px) rotate(45deg);
+        }
+        #menu-toggle.active .bar:nth-child(2) {
+            opacity: 0;
+        }
+        #menu-toggle.active .bar:nth-child(3) {
+            transform: translateY(-8px) rotate(-45deg);
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="canvas"></div>
+    <div id="menu-toggle">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+    </div>
+    <div id="controls">
+        <div class="category">
+            <h3>Particle Settings</h3>
+            <label>Particle Count: <input type="range" id="particleCount" min="1000" max="10000" step="100" value="3000"></label>
+            <label>Particle Size: <input type="range" id="particleSize" min="0.001" max="10.0" step="0.001" value="0.5"></label>
+            <div id="particleSizeValue">Size: 0.5</div>
+            <label>Particle Shape:
+                <select id="particleShape">
+                    <option value="all">All Shapes</option>
+                    <option value="circle">Circle</option>
+                    <option value="star">Star</option>
+                    <option value="triangle">Triangle</option>
+                    <option value="heart">Heart</option>
+                    <option value="X">X</option>
+                    <option value="A">Letter A</option>
+                    <option value="B">Letter B</option>
+                    <option value="C">Letter C</option>
+                    <option value="D">Letter D</option>
+                    <option value="E">Letter E</option>
+                    <option value="Z">Letter Z</option>
+                    <option value="А">Cyrillic А</option>
+                    <option value="Б">Cyrillic Б</option>
+                    <option value="В">Cyrillic В</option>
+                    <option value="Г">Cyrillic Г</option>
+                    <option value="Д">Cyrillic Д</option>
+                    <option value="Е">Cyrillic Е</option>
+                    <option value="Ж">Cyrillic Ж</option>
+                    <option value="あ">Japanese あ (Hiragana)</option>
+                    <option value="ア">Japanese ア (Katakana)</option>
+                    <option value="い">Japanese い (Hiragana)</option>
+                    <option value="イ">Japanese イ (Katakana)</option>
+                    <option value="漢">Chinese 漢</option>
+                    <option value="字">Chinese 字</option>
+                    <option value="学">Chinese 学</option>
+                    <option value="美">Chinese 美</option>
+                </select>
+            </label>
+        </div>
+        <div class="category">
+            <h3>Dynamics</h3>
+            <label>Dynamics:
+                <select id="dynamicsType">
+                    <optgroup label="Chaotic Attractors">
+                        <option value="lorenz">Lorenz Attractor</option>
+                        <option value="rossler">Rössler Attractor</option>
+                        <option value="chua">Chua's Circuit</option>
+                        <option value="aizawa">Aizawa Attractor</option>
+                        <option value="thomas">Thomas Attractor</option>
+                        <option value="halvorsen">Halvorsen Attractor</option>
+                        <option value="sprott">Sprott Attractor</option>
+                        <option value="chen">Chen Attractor</option>
+                        <option value="fourwing">Four-Wing Attractor</option>
+                        <option value="dadras">Dadras Attractor</option>
+                        <option value="rabinovich">Rabinovich-Fabrikant</option>
+                        <option value="duffing">Duffing Oscillator</option>
+                        <option value="lu">Lü Attractor</option>
+                    </optgroup>
+                    <optgroup label="Physical Simulations">
+                        <option value="doublePendulum">Double Pendulum</option>
+                        <option value="turbulence">Turbulence Flow</option>
+                        <option value="wave">Wave Propagation</option>
+                        <option value="vortex">Vortex Dynamics</option>
+                        <option value="fluid">Fluid Dynamics</option>
+                        <option value="gravity">Gravitational Pull</option>
+                    </optgroup>
+                    <optgroup label="Periodic Motions">
+                        <option value="spiralWave">Spiral Wave</option>
+                        <option value="oscillator">Harmonic Oscillator</option>
+                        <option value="pendulumWave">Pendulum Wave</option>
+                        <option value="torus">Torus Flow</option>
+                        <option value="lissajous">Lissajous Curve</option>
+                    </optgroup>
+                </select>
+            </label>
+            <label>Speed: <input type="range" id="speed" min="0.0001" max="0.05" step="0.0001" value="0.005"></label>
+        </div>
+        <div class="category">
+            <h3>Visuals</h3>
+            <label>Opacity: <input type="range" id="opacity" min="0.1" max="1.0" step="0.1" value="1.0"></label>
+            <label>Color Palette:
+                <select id="colorPalette">
+                    <option value="random">Random</option>
+                    <option value="fire">Fire</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="neon">Neon</option>
+                </select>
+            </label>
+            <label>Background Color: <input type="color" id="backgroundColor" value="#000000"></label>
+            <label>Bloom Intensity: <input type="range" id="bloomIntensity" min="0" max="2" step="0.1" value="1"></label>
+            <label>Bloom Enabled: <input type="checkbox" id="bloomEnabled" checked></label>
+            <label>Dynamic Colors: <input type="checkbox" id="dynamicColors"></label>
+            <label>Particle Trails: <input type="checkbox" id="particleTrails" checked></label>
+            <label>Trail Length: <input type="range" id="trailLength" min="0" max="100" step="1" value="10"></label>
+            <div id="trailLengthValue">Trail Length: 10</div>
+        </div>
+        <div class="category">
+            <h3>Camera</h3>
+            <label>Camera Path:
+                <select id="cameraPath">
+                    <option value="none">None</option>
+                    <option value="spiral">Spiral</option>
+                    <option value="orbit">Orbit</option>
+                </select>
+            </label>
+            <label>Camera Animation: <input type="checkbox" id="cameraAnimation"></label>
+            <label>WASD Movement: <input type="checkbox" id="wasdMovement"></label>
+        </div>
+        <div class="category">
+            <h3>Interaction</h3>
+            <label>Interactive Attraction: <input type="checkbox" id="interactiveAttraction"></label>
+        </div>
+        <div class="category">
+            <h3>Audio</h3>
+            <label>Audio Reactive: <input type="checkbox" id="audioReactive"></label>
+            <label>Low Pass Filter: <input type="range" id="lowPassFilter" min="20" max="20000" step="10" value="200" title="Adjust low-pass filter frequency (Hz)"></label>
+            <div id="lowPassValue">Low Pass: 200 Hz</div>
+            <label>High Pass Filter: <input type="range" id="highPassFilter" min="20" max="20000" step="10" value="20" title="Adjust high-pass filter frequency (Hz)"></label>
+            <div id="highPassValue">High Pass: 20 Hz</div>
+            <label>Audio File: <input type="file" id="audioFile" accept="audio/*,audio/m4a"></label>
+            <label><button id="playPauseAudio">Play Audio</button></label>
+            <label>Record Audio: <input type="checkbox" id="recordAudio"></label>
+        </div>
+        <div class="category">
+            <h3>Recording</h3>
+            <label>Recording Quality:
+                <select id="recordQuality">
+                    <option value="720p">720p</option>
+                    <option value="1080p">1080p</option>
+                    <option value="1440p">1440p</option>
+                    <option value="4K">4K</option>
+                    <option value="5K">5K</option>
+                    <option value="8K">8K</option>
+                </select>
+            </label>
+            <label>Export Format:
+                <select id="exportFormat">
+                    <option value="webm">WebM</option>
+                    <option value="mp4">MP4</option>
+                </select>
+            </label>
+            <label>Bitrate:
+                <select id="bitrate">
+                    <option value="10000000">10 Mbps</option>
+                    <option value="20000000">20 Mbps</option>
+                    <option value="50000000">50 Mbps</option>
+                    <option value="100000000">100 Mbps</option>
+                    <option value="150000000">150 Mbps</option>
+                </select>
+            </label>
+            <label>Aspect Ratio:
+                <select id="aspectRatio">
+                    <option value="16:9">16:9 (Landscape)</option>
+                    <option value="9:16">9:16 (Reels)</option>
+                    <option value="1:1">1:1 (Square)</option>
+                </select>
+            </label>
+            <div id="timer">Recording: 00:00</div>
+            <button id="randomize">Randomize</button>
+            <button id="startRecord">Start Recording</button>
+            <button id="stopRecord" disabled>Stop Recording</button>
+        </div>
+    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        let scene, camera, renderer, composer, particles, positions, velocities, colors, alphas;
+        let dynamicsType = 'lorenz';
+        let isRecording = false;
+        let bloomPass;
+        let orbitControls;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let startTime = 0;
+        let timerInterval;
+        let attractionPoint = null;
+        let keys = {};
+        let trailsGeometry, trailsMaterial, trails;
+        let trailPositions, trailColors, trailAlphas;
+        let trailHistory = [];
+        let lastCameraPosition = new THREE.Vector3();
+        let lastCameraQuaternion = new THREE.Quaternion();
+        let recordingRenderer, recordingComposer, recordingCanvas;
+        let audioContext, analyser, audioData, audioElement, audioSource, lowPassFilter, highPassFilter;
+        let particleTextures = [];
+        const shapeOptions = ['circle', 'star', 'triangle', 'heart', 'X', 'A', 'B', 'C', 'D', 'E', 'Z', 'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'あ', 'ア', 'い', 'イ', '漢', '字', '学', '美'];
+        const maxTextures = 16;
+        let audioInitialized = false;
+        let isAudioPlaying = false;
+
+        function init() {
+            const canvasElement = document.getElementById('canvas');
+            if (!canvasElement) {
+                console.error('Canvas element not found!');
+                return;
+            }
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(100, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 20);
+            lastCameraPosition.copy(camera.position);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            canvasElement.appendChild(renderer.domElement);
+
+            composer = new EffectComposer(renderer);
+            const renderPass = new RenderPass(scene, camera);
+            composer.addPass(renderPass);
+            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.4, 0.5);
+            bloomPass.enabled = true;
+            composer.addPass(bloomPass);
+            const outputPass = new OutputPass();
+            composer.addPass(outputPass);
+
+            orbitControls = new OrbitControls(camera, renderer.domElement);
+            orbitControls.enableDamping = true;
+            orbitControls.dampingFactor = 0.05;
+
+            shapeOptions.forEach(shape => {
+                particleTextures[shape] = createParticleTexture(shape);
+            });
+
+            initParticles();
+            setupEventListeners();
+
+            window.addEventListener('resize', onWindowResize);
+            updateAspectRatio();
+            animate();
+        }
+
+        function initAudioContext() {
+            if (!audioInitialized) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 4096;
+                    audioData = new Uint8Array(analyser.fftSize);
+                    highPassFilter = audioContext.createBiquadFilter();
+                    highPassFilter.type = 'highpass';
+                    highPassFilter.frequency.setValueAtTime(parseFloat(document.getElementById('highPassFilter')?.value || 20), audioContext.currentTime);
+                    lowPassFilter = audioContext.createBiquadFilter();
+                    lowPassFilter.type = 'lowpass';
+                    lowPassFilter.frequency.setValueAtTime(parseFloat(document.getElementById('lowPassFilter')?.value || 200), audioContext.currentTime);
+                    // Connect filters immediately to ensure they are always active
+                    highPassFilter.connect(lowPassFilter);
+                    lowPassFilter.connect(analyser);
+                    analyser.connect(audioContext.destination);
+                    audioInitialized = true;
+                } catch (error) {
+                    console.error('Failed to initialize audio context:', error);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function setupEventListeners() {
+            const elements = {
+                particleCount: document.getElementById('particleCount'),
+                particleSize: document.getElementById('particleSize'),
+                dynamicsType: document.getElementById('dynamicsType'),
+                speed: document.getElementById('speed'),
+                opacity: document.getElementById('opacity'),
+                colorPalette: document.getElementById('colorPalette'),
+                particleShape: document.getElementById('particleShape'),
+                cameraPath: document.getElementById('cameraPath'),
+                backgroundColor: document.getElementById('backgroundColor'),
+                bloomIntensity: document.getElementById('bloomIntensity'),
+                bloomEnabled: document.getElementById('bloomEnabled'),
+                cameraAnimation: document.getElementById('cameraAnimation'),
+                particleTrails: document.getElementById('particleTrails'),
+                trailLength: document.getElementById('trailLength'),
+                dynamicColors: document.getElementById('dynamicColors'),
+                interactiveAttraction: document.getElementById('interactiveAttraction'),
+                wasdMovement: document.getElementById('wasdMovement'),
+                audioReactive: document.getElementById('audioReactive'),
+                lowPassFilter: document.getElementById('lowPassFilter'),
+                highPassFilter: document.getElementById('highPassFilter'),
+                audioFile: document.getElementById('audioFile'),
+                playPauseAudio: document.getElementById('playPauseAudio'),
+                recordAudio: document.getElementById('recordAudio'),
+                aspectRatio: document.getElementById('aspectRatio'),
+                recordQuality: document.getElementById('recordQuality'),
+                exportFormat: document.getElementById('exportFormat'),
+                bitrate: document.getElementById('bitrate'),
+                randomize: document.getElementById('randomize'),
+                startRecord: document.getElementById('startRecord'),
+                stopRecord: document.getElementById('stopRecord'),
+                menuToggle: document.getElementById('menu-toggle')
+            };
+
+            for (const [key, element] of Object.entries(elements)) {
+                if (!element) {
+                    console.error(`Element with ID '${key}' not found!`);
+                    continue;
+                }
+                switch (key) {
+                    case 'particleCount':
+                    case 'colorPalette':
+                    case 'particleShape':
+                        element.addEventListener('input', initParticles);
+                        break;
+                    case 'particleSize':
+                        element.addEventListener('input', () => {
+                            if (particles?.material) {
+                                particles.material.uniforms.pointSize.value = parseFloat(element.value);
+                                particles.material.needsUpdate = true;
+                                document.getElementById('particleSizeValue').textContent = `Size: ${parseFloat(element.value).toFixed(2)}`;
+                            }
+                        });
+                        break;
+                    case 'dynamicsType':
+                        element.addEventListener('change', (e) => {
+                            dynamicsType = e.target.value;
+                            initParticles();
+                        });
+                        break;
+                    case 'speed':
+                        element.addEventListener('input', () => {});
+                        break;
+                    case 'opacity':
+                        element.addEventListener('input', () => {
+                            if (particles?.material) {
+                                particles.material.uniforms.opacity.value = parseFloat(element.value);
+                                particles.material.needsUpdate = true;
+                            }
+                            if (trailsMaterial) {
+                                trailsMaterial.uniforms.opacity.value = parseFloat(element.value);
+                                trailsMaterial.needsUpdate = true;
+                            }
+                        });
+                        break;
+                    case 'trailLength':
+                        element.addEventListener('input', () => {
+                            initTrails();
+                            document.getElementById('trailLengthValue').textContent = `Trail Length: ${element.value}`;
+                        });
+                        break;
+                    case 'cameraPath':
+                        element.addEventListener('change', () => {
+                            orbitControls.autoRotate = false;
+                            elements.cameraAnimation.checked = false;
+                        });
+                        break;
+                    case 'backgroundColor':
+                        element.addEventListener('input', (e) => {
+                            scene.background = new THREE.Color(e.target.value);
+                        });
+                        break;
+                    case 'bloomIntensity':
+                        element.addEventListener('input', (e) => {
+                            bloomPass.strength = parseFloat(e.target.value);
+                        });
+                        break;
+                    case 'bloomEnabled':
+                        element.addEventListener('change', (e) => {
+                            bloomPass.enabled = e.target.checked;
+                        });
+                        break;
+                    case 'cameraAnimation':
+                        element.addEventListener('change', (e) => {
+                            orbitControls.autoRotate = e.target.checked;
+                            if (e.target.checked) elements.cameraPath.value = 'none';
+                        });
+                        break;
+                    case 'particleTrails':
+                        element.addEventListener('change', (e) => {
+                            if (trails) trails.visible = e.target.checked;
+                            initTrails();
+                        });
+                        break;
+                    case 'audioReactive':
+                        element.addEventListener('change', async (e) => {
+                            if (e.target.checked && initAudioContext()) {
+                                if (audioContext.state === 'suspended') {
+                                    await audioContext.resume().catch(console.error);
+                                }
+                            }
+                        });
+                        break;
+                    case 'lowPassFilter':
+                        element.addEventListener('input', () => {
+                            if (lowPassFilter) {
+                                lowPassFilter.frequency.setValueAtTime(parseFloat(element.value), audioContext.currentTime);
+                                document.getElementById('lowPassValue').textContent = `Low Pass: ${element.value} Hz`;
+                            }
+                        });
+                        break;
+                    case 'highPassFilter':
+                        element.addEventListener('input', () => {
+                            if (highPassFilter) {
+                                highPassFilter.frequency.setValueAtTime(parseFloat(element.value), audioContext.currentTime);
+                                document.getElementById('highPassValue').textContent = `High Pass: ${element.value} Hz`;
+                            }
+                        });
+                        break;
+                    case 'audioFile':
+                        element.addEventListener('change', async (e) => {
+                            if (e.target.files.length > 0) {
+                                if (!initAudioContext()) {
+                                    alert('Audio context initialization failed.');
+                                    return;
+                                }
+                                if (audioContext.state === 'suspended') {
+                                    await audioContext.resume().catch(console.error);
+                                }
+                                const file = e.target.files[0];
+                                if (audioElement) {
+                                    audioElement.pause();
+                                    isAudioPlaying = false;
+                                    elements.playPauseAudio.textContent = 'Play Audio';
+                                }
+                                audioElement = new Audio(URL.createObjectURL(file));
+                                audioElement.crossOrigin = 'anonymous';
+                                const reader = new FileReader();
+                                reader.onload = async (event) => {
+                                    try {
+                                        const buffer = await audioContext.decodeAudioData(event.target.result);
+                                        if (audioSource) {
+                                            try {
+                                                audioSource.stop();
+                                            } catch (err) {
+                                                console.warn('AudioSource stop ignored:', err);
+                                            }
+                                            audioSource.disconnect();
+                                        }
+                                        audioSource = audioContext.createBufferSource();
+                                        audioSource.buffer = buffer;
+                                        audioSource.loop = true;
+                                        // Connect to filters immediately
+                                        audioSource.connect(highPassFilter);
+                                        audioSource.start();
+                                        elements.audioReactive.checked = true;
+                                        isAudioPlaying = true;
+                                        elements.playPauseAudio.textContent = 'Pause Audio';
+                                    } catch (err) {
+                                        console.error('Audio decode error:', err);
+                                        alert('Failed to load audio file. Please try a different format.');
+                                    }
+                                };
+                                reader.readAsArrayBuffer(file);
+                            }
+                        });
+                        break;
+                    case 'playPauseAudio':
+                        element.addEventListener('click', async () => {
+                            if (audioElement) {
+                                if (isAudioPlaying) {
+                                    audioElement.pause();
+                                    if (audioSource) {
+                                        try {
+                                            audioSource.stop();
+                                        } catch (err) {
+                                            console.warn('AudioSource stop ignored:', err);
+                                        }
+                                        audioSource.disconnect();
+                                        audioSource = null;
+                                    }
+                                    element.textContent = 'Play Audio';
+                                    isAudioPlaying = false;
+                                } else {
+                                    if (!initAudioContext()) {
+                                        alert('Audio context initialization failed.');
+                                        return;
+                                    }
+                                    if (audioContext.state === 'suspended') {
+                                        await audioContext.resume().catch(console.error);
+                                    }
+                                    audioElement.play().catch(err => console.error('Audio play error:', err));
+                                    if (!audioSource) {
+                                        const source = audioContext.createMediaElementSource(audioElement);
+                                        // Connect to filters immediately
+                                        source.connect(highPassFilter);
+                                        audioSource = source;
+                                    }
+                                    element.textContent = 'Pause Audio';
+                                    isAudioPlaying = true;
+                                }
+                            } else {
+                                alert('Please select an audio file first.');
+                            }
+                        });
+                        break;
+                    case 'aspectRatio':
+                        element.addEventListener('change', updateAspectRatio);
+                        break;
+                    case 'randomize':
+                        element.addEventListener('click', randomizeSettings);
+                        break;
+                    case 'startRecord':
+                        element.addEventListener('click', startRecording);
+                        break;
+                    case 'stopRecord':
+                        element.addEventListener('click', stopRecording);
+                        break;
+                    case 'menuToggle':
+                        element.addEventListener('click', () => {
+                            const controls = document.getElementById('controls');
+                            controls.classList.toggle('active');
+                            element.classList.toggle('active');
+                        });
+                        break;
+                }
+            }
+
+            document.addEventListener('mousedown', (e) => {
+                if (elements.interactiveAttraction?.checked) {
+                    const raycaster = new THREE.Raycaster();
+                    const mouse = new THREE.Vector2();
+                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+                    const direction = raycaster.ray.direction.clone().multiplyScalar(20);
+                    attractionPoint = camera.position.clone().add(direction);
+                }
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (elements.interactiveAttraction?.checked && attractionPoint) {
+                    const raycaster = new THREE.Raycaster();
+                    const mouse = new THREE.Vector2();
+                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+                    const direction = raycaster.ray.direction.clone().multiplyScalar(20);
+                    attractionPoint.copy(camera.position).add(direction);
+                }
+            });
+            document.addEventListener('mouseup', () => {
+                attractionPoint = null;
+            });
+            document.addEventListener('keydown', (e) => {
+                if (elements.wasdMovement?.checked) {
+                    keys[e.key.toLowerCase()] = true;
+                }
+            });
+            document.addEventListener('keyup', (e) => {
+                keys[e.key.toLowerCase()] = false;
+            });
+        }
+
+        function createParticleTexture(shape) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const context = canvas.getContext('2d');
+            context.fillStyle = 'white';
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
+
+            if (['circle', 'star', 'triangle', 'heart', 'X'].includes(shape)) {
+                context.beginPath();
+                if (shape === 'circle') {
+                    context.arc(256, 256, 240, 0, Math.PI * 2);
+                } else if (shape === 'star') {
+                    const spikes = 5;
+                    const outerRadius = 240;
+                    const innerRadius = 120;
+                    let rot = Math.PI / 2 * 3;
+                    const cx = 256, cy = 256;
+                    const step = Math.PI / spikes;
+                    context.moveTo(cx, cy - outerRadius);
+                    for (let i = 0; i < spikes; i++) {
+                        context.lineTo(cx + Math.cos(rot) * outerRadius, cy + Math.sin(rot) * outerRadius);
+                        rot += step;
+                        context.lineTo(cx + Math.cos(rot) * innerRadius, cy + Math.sin(rot) * innerRadius);
+                        rot += step;
+                    }
+                    context.lineTo(cx, cy - outerRadius);
+                    context.closePath();
+                } else if (shape === 'triangle') {
+                    context.moveTo(256, 16);
+                    context.lineTo(16, 496);
+                    context.lineTo(496, 16);
+                    context.closePath();
+                } else if (shape === 'heart') {
+                    const cx = 256, cy = 256;
+                    context.moveTo(cx, cy - 120);
+                    context.bezierCurveTo(cx + 120, cy - 240, cx + 240, cy - 80, cx, cy + 160);
+                    context.bezierCurveTo(cx - 240, cy - 80, cx - 120, cy - 240, cx, cy - 120);
+                    context.closePath();
+                } else if (shape === 'X') {
+                    context.lineWidth = 40;
+                    context.beginPath();
+                    context.moveTo(80, 80);
+                    context.lineTo(432, 432);
+                    context.moveTo(432, 80);
+                    context.lineTo(80, 432);
+                    context.strokeStyle = 'white';
+                    context.stroke();
+                    context.closePath();
+                    return new THREE.CanvasTexture(canvas);
+                }
+                context.fill();
+            } else {
+                context.font = 'bold 360px "Noto Sans JP", "Noto Sans SC", sans-serif';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(shape, 256, 256);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function initParticles() {
+            if (scene && particles) scene.remove(particles);
+            const count = Math.min(parseInt(document.getElementById('particleCount')?.value || 3000), 10000);
+            const palette = document.getElementById('colorPalette')?.value || 'random';
+            const shape = document.getElementById('particleShape')?.value || 'circle';
+            const geometry = new THREE.BufferGeometry();
+            positions = new Float32Array(count * 3);
+            velocities = new Float32Array(count * 3);
+            colors = new Float32Array(count * 3);
+            alphas = new Float32Array(count);
+            const textureIndices = new Float32Array(count);
+
+            const palettes = {
+                fire: [[1.0, 0.5, 0.2], [1.0, 0.8, 0.2], [0.8, 0.2, 0.2]],
+                ocean: [[0.2, 0.5, 1.0], [0.2, 0.8, 1.0], [0.1, 0.3, 0.8]],
+                neon: [[0.8, 0.2, 1.0], [0.2, 1.0, 0.2], [1.0, 0.2, 0.8]]
+            };
+
+            let selectedShapes = [];
+            if (shape === 'all') {
+                const shuffled = [...shapeOptions].sort(() => Math.random() - 0.5);
+                selectedShapes = shuffled.slice(0, maxTextures);
+            } else {
+                selectedShapes = [shape];
+            }
+            const textureArray = selectedShapes.map(s => particleTextures[s]);
+
+            for (let i = 0; i < count; i++) {
+                let x, y, z;
+                switch (dynamicsType) {
+                    case 'lorenz':
+                    case 'chen':
+                    case 'lu':
+                        x = Math.random() * 20 - 10;
+                        y = Math.random() * 20 - 10;
+                        z = Math.random() * 20 - 10;
+                        break;
+                    case 'rossler':
+                        x = Math.random() * 10 - 5;
+                        y = Math.random() * 10 - 5;
+                        z = Math.random() * 10;
+                        break;
+                    case 'chua':
+                    case 'aizawa':
+                    case 'thomas':
+                    case 'halvorsen':
+                    case 'sprott':
+                    case 'fourwing':
+                    case 'dadras':
+                    case 'rabinovich':
+                    case 'duffing':
+                        x = Math.random() * 5 - 2.5;
+                        y = Math.random() * 5 - 2.5;
+                        z = Math.random() * 5 - 2.5;
+                        break;
+                    case 'doublePendulum':
+                        x = Math.sin(Math.random() * Math.PI) * 10;
+                        y = Math.cos(Math.random() * Math.PI) * 10;
+                        z = Math.random() * 5 - 2.5;
+                        break;
+                    case 'turbulence':
+                    case 'wave':
+                    case 'vortex':
+                    case 'fluid':
+                    case 'gravity':
+                    case 'spiralWave':
+                    case 'oscillator':
+                    case 'pendulumWave':
+                    case 'torus':
+                    case 'lissajous':
+                        x = Math.random() * 20 - 10;
+                        y = Math.random() * 20 - 10;
+                        z = Math.random() * 20 - 10;
+                        break;
+                }
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+                velocities[i * 3] = (Math.random() - 0.5) * 0.1;
+                velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+                velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
+                alphas[i] = 1.0;
+
+                if (palette === 'random') {
+                    colors[i * 3] = 0.5 + Math.random() * 0.5;
+                    colors[i * 3 + 1] = 0.5 + Math.random() * 0.5;
+                    colors[i * 3 + 2] = 0.5 + Math.random() * 0.5;
+                } else {
+                    const color = palettes[palette][Math.floor(Math.random() * palettes[palette].length)];
+                    colors[i * 3] = color[0];
+                    colors[i * 3 + 1] = color[1];
+                    colors[i * 3 + 2] = color[2];
+                }
+
+                textureIndices[i] = shape === 'all' ? Math.floor(Math.random() * selectedShapes.length) : 0;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
+            geometry.setAttribute('textureIndex', new THREE.BufferAttribute(textureIndices, 1));
+
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    pointTextures: { value: textureArray },
+                    pointSize: { value: parseFloat(document.getElementById('particleSize')?.value || 0.5) },
+                    opacity: { value: parseFloat(document.getElementById('opacity')?.value || 1.0) }
+                },
+                vertexShader: `
+                    attribute vec3 color;
+                    attribute float alpha;
+                    attribute float textureIndex;
+                    varying vec3 vColor;
+                    varying float vAlpha;
+                    varying float vTextureIndex;
+                    uniform float pointSize;
+                    void main() {
+                        vColor = color;
+                        vAlpha = alpha;
+                        vTextureIndex = textureIndex;
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        gl_PointSize = pointSize * (300.0 / -mvPosition.z);
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D pointTextures[${selectedShapes.length}];
+                    uniform float opacity;
+                    varying vec3 vColor;
+                    varying float vAlpha;
+                    varying float vTextureIndex;
+                    void main() {
+                        int index = int(vTextureIndex);
+                        vec4 texColor;
+                        ${selectedShapes.map((_, i) => `if (index == ${i}) texColor = texture2D(pointTextures[${i}], gl_PointCoord);`).join(' else ')}
+                        if (texColor.a < 0.1) discard;
+                        gl_FragColor = vec4(vColor, opacity * vAlpha) * texColor;
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            initTrails();
+        }
+
+        function initTrails() {
+            if (scene && trails) {
+                scene.remove(trails);
+                trailsGeometry?.dispose();
+                trailsMaterial?.dispose();
+                trails = null;
+            }
+            if (!document.getElementById('particleTrails')?.checked) return;
+            const count = Math.min(parseInt(document.getElementById('particleCount')?.value || 3000), 10000);
+            const trailLevel = parseInt(document.getElementById('trailLength')?.value || 10);
+            const trailLength = Math.max(2, Math.floor(trailLevel / 100 * 50));
+
+            trailHistory = Array(count).fill().map(() => []);
+            for (let i = 0; i < count; i++) {
+                trailHistory[i].push(new THREE.Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]));
+            }
+
+            trailsGeometry = new THREE.BufferGeometry();
+            trailPositions = new Float32Array(count * trailLength * 6);
+            trailColors = new Float32Array(count * trailLength * 6);
+            trailAlphas = new Float32Array(count * trailLength * 2);
+
+            for (let i = 0; i < count; i++) {
+                const pos = trailHistory[i][0];
+                for (let j = 0; j < trailLength; j++) {
+                    const offset = (i * trailLength + j) * 6;
+                    trailPositions[offset] = pos.x;
+                    trailPositions[offset + 1] = pos.y;
+                    trailPositions[offset + 2] = pos.z;
+                    trailPositions[offset + 3] = pos.x;
+                    trailPositions[offset + 4] = pos.y;
+                    trailPositions[offset + 5] = pos.z;
+                    trailColors[offset] = colors[i * 3];
+                    trailColors[offset + 1] = colors[i * 3 + 1];
+                    trailColors[offset + 2] = colors[i * 3 + 2];
+                    trailColors[offset + 3] = colors[i * 3];
+                    trailColors[offset + 4] = colors[i * 3 + 1];
+                    trailColors[offset + 5] = colors[i * 3 + 2];
+                    trailAlphas[(i * trailLength + j) * 2] = alphas[i] * (1 - j / trailLength) * 0.5;
+                    trailAlphas[(i * trailLength + j) * 2 + 1] = alphas[i] * (1 - (j + 1) / trailLength) * 0.5;
+                }
+            }
+
+            trailsGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+            trailsGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+            trailsGeometry.setAttribute('alpha', new THREE.BufferAttribute(trailAlphas, 1));
+            trailsMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    opacity: { value: parseFloat(document.getElementById('opacity')?.value || 1.0) }
+                },
+                vertexShader: `
+                    attribute vec3 color;
+                    attribute float alpha;
+                    varying vec3 vColor;
+                    varying float vAlpha;
+                    void main() {
+                        vColor = color;
+                        vAlpha = alpha;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform float opacity;
+                    varying vec3 vColor;
+                    varying float vAlpha;
+                    void main() {
+                        gl_FragColor = vec4(vColor, opacity * vAlpha);
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            trails = new THREE.LineSegments(trailsGeometry, trailsMaterial);
+            trails.visible = document.getElementById('particleTrails')?.checked || false;
+            scene.add(trails);
+        }
+
+        function updateTrails() {
+            if (!trails || !document.getElementById('particleTrails')?.checked) return;
+            const count = Math.min(parseInt(document.getElementById('particleCount')?.value || 3000), 10000);
+            const trailLevel = parseInt(document.getElementById('trailLength')?.value || 10);
+            const trailLength = Math.max(2, Math.floor(trailLevel / 100 * 50));
+
+            for (let i = 0; i < count; i++) {
+                trailHistory[i].unshift(new THREE.Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]));
+                if (trailHistory[i].length > trailLength) trailHistory[i].pop();
+
+                for (let j = 0; j < Math.min(trailHistory[i].length - 1, trailLength); j++) {
+                    const offset = (i * trailLength + j) * 6;
+                    const pos1 = trailHistory[i][j];
+                    const pos2 = trailHistory[i][j + 1] || pos1;
+                    trailPositions[offset] = pos1.x;
+                    trailPositions[offset + 1] = pos1.y;
+                    trailPositions[offset + 2] = pos1.z;
+                    trailPositions[offset + 3] = pos2.x;
+                    trailPositions[offset + 4] = pos2.y;
+                    trailPositions[offset + 5] = pos2.z;
+                    trailColors[offset] = colors[i * 3];
+                    trailColors[offset + 1] = colors[i * 3 + 1];
+                    trailColors[offset + 2] = colors[i * 3 + 2];
+                    trailColors[offset + 3] = colors[i * 3];
+                    trailColors[offset + 4] = colors[i * 3 + 1];
+                    trailColors[offset + 5] = colors[i * 3 + 2];
+                    trailAlphas[(i * trailLength + j) * 2] = alphas[i] * (1 - j / trailLength) * 0.5;
+                    trailAlphas[(i * trailLength + j) * 2 + 1] = alphas[i] * (1 - (j + 1) / trailLength) * 0.5;
+                }
+            }
+
+            trailsGeometry.attributes.position.needsUpdate = true;
+            trailsGeometry.attributes.color.needsUpdate = true;
+            trailsGeometry.attributes.alpha.needsUpdate = true;
+            if (trailsMaterial) {
+                trailsMaterial.uniforms.opacity.value = parseFloat(document.getElementById('opacity')?.value || 1.0);
+                trailsMaterial.needsUpdate = true;
+            }
+        }
+
+        function updateParticles() {
+            const count = Math.min(parseInt(document.getElementById('particleCount')?.value || 3000), 10000);
+            const speed = parseFloat(document.getElementById('speed')?.value || 0.005);
+            const dt = speed;
+            const dynamicColors = document.getElementById('dynamicColors')?.checked || false;
+            const audioReactive = document.getElementById('audioReactive')?.checked || false;
+
+            let audioAmplitude = 0;
+            let frequencyData = [];
+            if (audioReactive && audioInitialized && analyser && audioData) {
+                try {
+                    analyser.getByteFrequencyData(audioData);
+                    audioAmplitude = audioData.reduce((sum, val) => sum + val, 0) / audioData.length / 255 * 2;
+                    frequencyData = Array.from(audioData, val => val / 255);
+                    if (particles?.material) {
+                        particles.material.uniforms.pointSize.value = parseFloat(document.getElementById('particleSize')?.value || 0.5) * (1 + audioAmplitude * 0.5);
+                        particles.material.needsUpdate = true;
+                    }
+                } catch (error) {
+                    console.error('Audio processing error:', error);
+                }
+            }
+
+            for (let i = 0; i < count; i++) {
+                let x = positions[i * 3];
+                let y = positions[i * 3 + 1];
+                let z = positions[i * 3 + 2];
+                let vx = velocities[i * 3];
+                let vy = velocities[i * 3 + 1];
+                let vz = velocities[i * 3 + 2];
+
+                switch (dynamicsType) {
+                    case 'lorenz':
+                        const l_sigma = 10, l_rho = 28, l_beta = 8 / 3;
+                        vx = l_sigma * (y - x);
+                        vy = x * (l_rho - z) - y;
+                        vz = x * y - l_beta * z;
+                        break;
+                    case 'rossler':
+                        const r_a = 0.2, r_b = 0.2, r_c = 5.7;
+                        vx = -(y + z);
+                        vy = x + r_a * y;
+                        vz = r_b + z * (x - r_c);
+                        break;
+                    case 'chua':
+                        const c_alpha = 15.6, c_beta = 28, c_m0 = -1.143, c_m1 = -0.714;
+                        const h = c_m1 * x + 0.5 * (c_m0 - c_m1) * (Math.abs(x + 1) - Math.abs(x - 1));
+                        vx = c_alpha * (y - x - h);
+                        vy = x - y + z;
+                        vz = -c_beta * y;
+                        break;
+                    case 'aizawa':
+                        const a_a = 0.95, a_b = 0.7, a_c = 0.6, a_d = 3.5, a_e = 0.25, a_f = 0.1;
+                        vx = (z - a_b) * x - a_d * y;
+                        vy = a_d * x + (z - a_b) * y;
+                        vz = a_c + a_a * z - (z * z * z) / 3 - (x * x + y * y) * (1 + a_e * z) + a_f * z * x * x * x;
+                        break;
+                    case 'thomas':
+                        const t_b = 0.208186;
+                        vx = -t_b * x + Math.sin(y);
+                        vy = -t_b * y + Math.sin(z);
+                        vz = -t_b * z + Math.sin(x);
+                        break;
+                    case 'halvorsen':
+                        const h_a = 1.4;
+                        vx = -h_a * x - 4 * y - 4 * z - y * y;
+                        vy = -h_a * y - 4 * z - 4 * x - z * z;
+                        vz = -h_a * z - 4 * x - 4 * y - x * x;
+                        break;
+                    case 'sprott':
+                        vx = y;
+                        vy = -x - z;
+                        vz = z + x * y;
+                        break;
+                    case 'chen':
+                        const c_a = 40, c_b = 3, c_c = 28;
+                        vx = c_a * (y - x);
+                        vy = (c_c - c_a) * x - x * z + c_c * y;
+                        vz = x * y - c_b * z;
+                        break;
+                    case 'fourwing':
+                        const f_a = 0.2, f_b = 0.01, f_c = -0.4;
+                        vx = f_a * x + y * z;
+                        vy = f_b * x + f_c * y - x * z;
+                        vz = -z - x * y;
+                        break;
+                    case 'dadras':
+                        const d_a = 3, d_b = 2.7, d_c = 1.7, d_d = 2, d_e = 9;
+                        vx = y - d_a * x + d_b * y * z;
+                        vy = d_c * y - x * z + z;
+                        vz = d_d * x * y - d_e * z;
+                        break;
+                    case 'rabinovich':
+                        const rb_a = 0.14, rb_b = 0.1;
+                        vx = y * (z - 1 + x * x) + rb_b * x;
+                        vy = x * (3 * z + 1 - x * x) + rb_b * y;
+                        vz = -2 * z * (rb_a + x * y);
+                        break;
+                    case 'duffing':
+                        const d_alpha = 0.5, d_beta = -1, d_gamma = 0.75, d_delta = 0.05, d_omega = 1.2;
+                        vx = y;
+                        vy = -d_delta * y - d_beta * x - d_alpha * x * x * x + d_gamma * Math.cos(d_omega * Date.now() * 0.001);
+                        vz = (Math.random() - 0.5) * 0.1;
+                        break;
+                    case 'lu':
+                        const lu_a = 36, lu_b = 3, lu_c = 20;
+                        vx = lu_a * (y - x);
+                        vy = -x * z + lu_c * y;
+                        vz = x * y - lu_b * z;
+                        break;
+                    case 'doublePendulum':
+                        const g_dp = 9.8, l = 5;
+                        vx = y;
+                        vy = -g_dp / l * Math.sin(x);
+                        vz = (Math.random() - 0.5) * 0.1;
+                        break;
+                    case 'turbulence':
+                        const t = Date.now() * 0.001;
+                        vx = Math.sin(y * 0.1 + t) * 0.5;
+                        vy = Math.cos(z * 0.1 + t) * 0.5;
+                        vz = Math.sin(x * 0.1 + t) * 0.5;
+                        break;
+                    case 'wave':
+                        const w_k = 0.05;
+                        vx = Math.cos(y * w_k + Date.now() * 0.001);
+                        vy = Math.sin(z * w_k + Date.now() * 0.001);
+                        vz = Math.cos(x * w_k + Date.now() * 0.001);
+                        break;
+                    case 'vortex':
+                        const v_r = 0.1;
+                        const r = Math.sqrt(x * x + y * y);
+                        vx = -y * v_r / (r + 0.1);
+                        vy = x * v_r / (r + 0.1);
+                        vz = Math.sin(z * 0.1);
+                        break;
+                    case 'fluid':
+                        const f_k = 0.05;
+                        vx = Math.sin(y * f_k) * 0.5;
+                        vy = Math.cos(z * f_k + Date.now() * 0.001) * 0.5;
+                        vz = Math.sin(x * f_k + Date.now() * 0.001) * 0.5;
+                        break;
+                    case 'gravity':
+                        const gravity = new THREE.Vector3(0, 0, 0);
+                        const point = new THREE.Vector3(x, y, z);
+                        const dist = point.distanceTo(gravity);
+                        const force = 0.5 / (dist * dist + 0.1);
+                        vx -= force * x / (dist + 1e-6);
+                        vy -= force * y / (dist + 1e-6);
+                        vz -= force * z / (dist + 1e-6);
+                        break;
+                    case 'spiralWave':
+                        const w_sp = 0.1;
+                        const sp_r = Math.sqrt(x * x + y * y);
+                        vx = -y * w_sp;
+                        vy = x * w_sp + Math.cos(sp_r + w_sp);
+                        vz = Math.sin(z * w_sp + Date.now() * 0.01);
+                        break;
+                    case 'oscillator':
+                        const o_k = 0.3;
+                        vx = y;
+                        vy = -x * o_k + Math.sin(z * o_k + Date.now() * 0.01);
+                        vz = -z * 0.1;
+                        break;
+                    case 'pendulumWave':
+                        const p_k = 0.2;
+                        vx = x * Math.cos(p_k);
+                        vy = y * Math.sin(p_k);
+                        vz = z * Math.sin(x * p_k + Date.now() * 0.01);
+                        break;
+                    case 'torus':
+                        const t_r1 = 5, t_r2 = 2;
+                        const theta = Math.atan2(y, x);
+                        const phi = Math.atan2(z, Math.sqrt(x * x + y * y) - t_r1);
+                        vx = -t_r2 * Math.sin(theta);
+                        vy = t_r2 * Math.cos(theta);
+                        vz = t_r1 * Math.sin(phi);
+                        break;
+                    case 'lissajous':
+                        const l_a = 0.5, l_b = 0.6, l_c = 0.7;
+                        vx = -l_a * Math.sin(l_a * x + Date.now() * 0.001);
+                        vy = -l_b * Math.sin(l_b * y + Date.now() * 0.001 + Math.PI / 3);
+                        vz = -l_c * Math.sin(l_c * z + Date.now() * 0.001 + Math.PI / 2);
+                        break;
+                }
+
+                if (attractionPoint && document.getElementById('interactiveAttraction')?.checked) {
+                    const attractionForce = 0.2;
+                    const dist = new THREE.Vector3(x, y, z).distanceTo(attractionPoint);
+                    if (dist > 0.1) {
+                        const direction = attractionPoint.clone().sub(new THREE.Vector3(x, y, z)).normalize();
+                        const force = attractionForce / (dist + 0.1);
+                        vx += direction.x * force;
+                        vy += direction.y * force;
+                        vz += direction.z * force;
+                    }
+                }
+
+                if (audioReactive && audioAmplitude > 0 && frequencyData.length > 0) {
+                    const dist = Math.sqrt(x * x + y * y + z * z);
+                    const waveSpeed = 0.5;
+                    const waveFrequency = 0.15;
+                    const waveAmplitude = audioAmplitude * 8;
+                    const wave = waveAmplitude * Math.sin(dist * waveFrequency - waveSpeed * (Date.now() * 0.01) + frequencyData[Math.floor(i % frequencyData.length)] * 0.5);
+                    const decay = Math.exp(-dist * 0.1);
+                    const dirX = x / (dist + 1e-6);
+                    const dirY = y / (dist + 1e-6);
+                    const dirZ = z / (dist + 1e-6);
+                    vx += dirX * wave * decay;
+                    vy += dirY * wave * decay;
+                    vz += dirZ * wave * decay;
+                    alphas[i] = 0.5 + audioAmplitude * 0.5;
+                    if (dynamicColors) {
+                        colors[i * 3] = 0.5 + audioAmplitude * Math.sin(x * 0.2 + Date.now() * 0.01);
+                        colors[i * 3 + 1] = 0.5 + audioAmplitude * Math.sin(y * 0.2 + Date.now() * 0.01);
+                        colors[i * 3 + 2] = 0.5 + audioAmplitude * Math.sin(z * 0.2 + Date.now() * 0.01);
+                    }
+                } else {
+                    alphas[i] = 1.0;
+                }
+
+                velocities[i * 3] = vx * dt;
+                velocities[i * 3 + 1] = vy * dt;
+                velocities[i * 3 + 2] = vz * dt;
+
+                positions[i * 3] += velocities[i * 3];
+                positions[i * 3 + 1] += velocities[i * 3 + 1];
+                positions[i * 3 + 2] += velocities[i * 3 + 2];
+
+                positions[i * 3] = Math.max(-50, Math.min(50, positions[i * 3]));
+                positions[i * 3 + 1] = Math.max(-50, Math.min(50, positions[i * 3 + 1]));
+                positions[i * 3 + 2] = Math.max(-50, Math.min(50, positions[i * 3 + 2]));
+
+                if (dynamicColors && !audioReactive) {
+                    colors[i * 3] = 0.5 + Math.sin(x * 0.1 + Date.now() * 0.001) * 0.5;
+                    colors[i * 3 + 1] = 0.5 + Math.sin(y * 0.1 + Date.now() * 0.001) * 0.5;
+                    colors[i * 3 + 2] = 0.5 + Math.sin(z * 0.1 + Date.now() * 0.001) * 0.5;
+                }
+            }
+
+            if (particles) {
+                particles.geometry.attributes.position.needsUpdate = true;
+                particles.geometry.attributes.color.needsUpdate = true;
+                particles.geometry.attributes.alpha.needsUpdate = true;
+            }
+
+            updateTrails();
+        }
+
+        function updateCamera() {
+            const path = document.getElementById('cameraPath')?.value || 'none';
+            if (path !== 'none') {
+                const time = Date.now() * 0.001;
+                if (path === 'spiral') {
+                    camera.position.x = 20 * Math.sin(time * 0.1);
+                    camera.position.y = 20 * Math.cos(time * 0.1);
+                    camera.position.z = 20 * Math.sin(time * 0.05);
+                    camera.lookAt(0, 0, 0);
+                } else if (path === 'orbit') {
+                    camera.position.x = 20 * Math.sin(time * 0.2);
+                    camera.position.z = 20 * Math.cos(time * 0.2);
+                    camera.position.y = 5 * Math.sin(time * 0.05);
+                    camera.lookAt(0, 0, 0);
+                }
+            }
+
+            if (document.getElementById('wasdMovement')?.checked) {
+                const moveSpeed = 0.2;
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward).normalize();
+                const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+                if (keys['w']) camera.position.addScaledVector(forward, moveSpeed);
+                if (keys['s']) camera.position.addScaledVector(forward, -moveSpeed);
+                if (keys['a']) camera.position.addScaledVector(right, -moveSpeed);
+                if (keys['d']) camera.position.addScaledVector(right, moveSpeed);
+            }
+
+            lastCameraPosition.copy(camera.position);
+            lastCameraQuaternion.copy(camera.quaternion);
+        }
+
+        function updateAspectRatio() {
+            const ratio = document.getElementById('aspectRatio')?.value || '16:9';
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            if (ratio === '9:16') {
+                width = Math.min(window.innerWidth, window.innerHeight * 9 / 16);
+                height = width * 16 / 9;
+            } else if (ratio === '1:1') {
+                width = height = Math.min(window.innerWidth, window.innerHeight);
+            } else {
+                height = Math.min(window.innerHeight, window.innerWidth * 9 / 16);
+                width = height * 16 / 9;
+            }
+            renderer.setSize(width, height);
+            composer.setSize(width, height);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.domElement.style.position = 'absolute';
+            renderer.domElement.style.left = `${(window.innerWidth - width) / 2}px`;
+            renderer.domElement.style.top = `${(window.innerHeight - height) / 2}px`;
+        }
+
+        function randomizeSettings() {
+            const elements = {
+                particleCount: document.getElementById('particleCount'),
+                particleSize: document.getElementById('particleSize'),
+                speed: document.getElementById('speed'),
+                opacity: document.getElementById('opacity'),
+                bloomIntensity: document.getElementById('bloomIntensity'),
+                bloomEnabled: document.getElementById('bloomEnabled'),
+                cameraAnimation: document.getElementById('cameraAnimation'),
+                particleTrails: document.getElementById('particleTrails'),
+                trailLength: document.getElementById('trailLength'),
+                dynamicColors: document.getElementById('dynamicColors'),
+                interactiveAttraction: document.getElementById('interactiveAttraction'),
+                wasdMovement: document.getElementById('wasdMovement'),
+                audioReactive: document.getElementById('audioReactive'),
+                lowPassFilter: document.getElementById('lowPassFilter'),
+                highPassFilter: document.getElementById('highPassFilter'),
+                dynamicsType: document.getElementById('dynamicsType'),
+                colorPalette: document.getElementById('colorPalette'),
+                particleShape: document.getElementById('particleShape'),
+                cameraPath: document.getElementById('cameraPath')
+            };
+
+            const audioReactiveState = elements.audioReactive?.checked;
+
+            elements.particleCount.value = Math.floor(Math.random() * 9000 + 1000);
+            elements.particleSize.value = (Math.random() * 9.999 + 0.001).toFixed(3);
+            document.getElementById('particleSizeValue').textContent = `Size: ${parseFloat(elements.particleSize.value).toFixed(2)}`;
+            elements.speed.value = (Math.random() * 0.0499 + 0.0001).toFixed(4);
+            elements.opacity.value = (Math.random() * 0.9 + 0.1).toFixed(1);
+            elements.bloomIntensity.value = (Math.random() * 2.0).toFixed(1);
+            elements.bloomEnabled.checked = Math.random() > 0.3;
+            elements.cameraAnimation.checked = Math.random() > 0.5;
+            elements.particleTrails.checked = Math.random() > 0.5;
+            elements.trailLength.value = Math.floor(Math.random() * 100);
+            document.getElementById('trailLengthValue').textContent = `Trail Length: ${elements.trailLength.value}`;
+            elements.dynamicColors.checked = Math.random() > 0.5;
+            elements.interactiveAttraction.checked = Math.random() > 0.5;
+            elements.wasdMovement.checked = Math.random() > 0.5;
+            elements.audioReactive.checked = audioReactiveState;
+            elements.lowPassFilter.value = Math.floor(Math.random() * 19980 + 20);
+            document.getElementById('lowPassValue').textContent = `Low Pass: ${elements.lowPassFilter.value} Hz`;
+            elements.highPassFilter.value = Math.floor(Math.random() * 19980 + 20);
+            document.getElementById('highPassValue').textContent = `High Pass: ${elements.highPassFilter.value} Hz`;
+            const dynamicsOptions = ['lorenz', 'rossler', 'chua', 'aizawa', 'thomas', 'halvorsen', 'sprott', 'chen', 'fourwing', 'dadras', 'rabinovich', 'duffing', 'lu', 'doublePendulum', 'turbulence', 'wave', 'vortex', 'fluid', 'gravity', 'spiralWave', 'oscillator', 'pendulumWave', 'torus', 'lissajous'];
+            elements.dynamicsType.value = dynamicsOptions[Math.floor(Math.random() * dynamicsOptions.length)];
+            elements.colorPalette.value = ['random', 'fire', 'ocean', 'neon'][Math.floor(Math.random() * 4)];
+            const shapeIndex = Math.floor(Math.random() * (shapeOptions.length + 1));
+            elements.particleShape.value = shapeIndex === 0 ? 'all' : shapeOptions[shapeIndex - 1];
+            elements.cameraPath.value = ['none', 'spiral', 'orbit'][Math.floor(Math.random() * 3)];
+
+            dynamicsType = elements.dynamicsType.value;
+            if (particles?.material) {
+                particles.material.uniforms.pointSize.value = parseFloat(elements.particleSize.value);
+                particles.material.uniforms.opacity.value = parseFloat(elements.opacity.value);
+                particles.material.needsUpdate = true;
+            }
+            bloomPass.enabled = elements.bloomEnabled.checked;
+            bloomPass.strength = parseFloat(elements.bloomIntensity.value);
+            orbitControls.autoRotate = elements.cameraAnimation.checked && elements.cameraPath.value === 'none';
+            if (lowPassFilter) lowPassFilter.frequency.setValueAtTime(parseFloat(elements.lowPassFilter.value), audioContext.currentTime);
+            if (highPassFilter) highPassFilter.frequency.setValueAtTime(parseFloat(elements.highPassFilter.value), audioContext.currentTime);
+            if (trails) trails.visible = elements.particleTrails.checked;
+            initParticles();
+        }
+
+        function updateTimer() {
+            if (isRecording) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `Recording: ${minutes}:${seconds}`;
+            }
+        }
+
+        async function startRecording() {
+            if (isRecording) return;
+            recordedChunks = [];
+            const quality = document.getElementById('recordQuality')?.value || '720p';
+            const ratio = document.getElementById('aspectRatio')?.value || '16:9';
+            const exportFormat = document.getElementById('exportFormat')?.value || 'webm';
+            const recordAudio = document.getElementById('recordAudio')?.checked || false;
+            let bitrate = parseInt(document.getElementById('bitrate')?.value || '20000000');
+            let mimeType = exportFormat === 'mp4' ? 'video/mp4' : 'video/webm;codecs=vp9';
+            let extension = exportFormat === 'mp4' ? 'mp4' : 'webm';
+            if (exportFormat === 'mp4' && !MediaRecorder.isTypeSupported(mimeType)) {
+                console.warn('MP4 not supported, falling back to WebM');
+                mimeType = 'video/webm;codecs=vp9';
+                extension = 'webm';
+            }
+
+            const qualityMap = {
+                '720p': { width: 1280, height: 720 },
+                '1080p': { width: 1920, height: 1080 },
+                '1440p': { width: 2560, height: 1440 },
+                '4K': { width: 3840, height: 2160 },
+                '5K': { width: 5120, height: 2880 },
+                '8K': { width: 7680, height: 4320 }
+            };
+            let width = qualityMap[quality].width;
+            let height = qualityMap[quality].height;
+            if (ratio === '9:16') {
+                width = qualityMap[quality].height * 9 / 16;
+                height = qualityMap[quality].height;
+            } else if (ratio === '1:1') {
+                width = height = Math.min(qualityMap[quality].width, qualityMap[quality].height);
+            }
+
+            const particleCount = Math.min(parseInt(document.getElementById('particleCount')?.value || 3000), 10000);
+            if ((quality === '5K' || quality === '8K') && bitrate > 50000000 && particleCount > 5000) {
+                if (confirm('High resolution, bitrate, and particle count may cause performance issues. Reduce bitrate to 50 Mbps or particle count to 5000?')) {
+                    bitrate = 50000000;
+                    document.getElementById('bitrate').value = bitrate;
+                    if (particleCount > 5000) {
+                        document.getElementById('particleCount').value = 5000;
+                        initParticles();
+                    }
+                }
+            }
+
+            recordingCanvas = document.createElement('canvas');
+            recordingCanvas.width = width;
+            recordingCanvas.height = height;
+            recordingRenderer = new THREE.WebGLRenderer({ canvas: recordingCanvas, antialias: true, alpha: true });
+            recordingRenderer.setPixelRatio(1);
+            recordingComposer = new EffectComposer(recordingRenderer);
+            const renderPass = new RenderPass(scene, camera);
+            recordingComposer.addPass(renderPass);
+            const recordingBloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), bloomPass.strength, bloomPass.radius, bloomPass.threshold);
+            recordingBloomPass.enabled = bloomPass.enabled;
+            recordingComposer.addPass(recordingBloomPass);
+            const outputPass = new OutputPass();
+            recordingComposer.addPass(outputPass);
+
+            let stream = recordingCanvas.captureStream(60);
+            if (recordAudio && audioElement && isAudioPlaying) {
+                const audioStream = audioElement.captureStream();
+                if (audioStream.getAudioTracks().length > 0) {
+                    stream = new MediaStream([...stream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+                } else {
+                    console.warn('No audio tracks available for recording.');
+                }
+            }
+
+            mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `particle_visualizer_${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
+                a.click();
+                URL.revokeObjectURL(url);
+                cleanupRecording();
+            };
+
+            mediaRecorder.start(100);
+            isRecording = true;
+            startTime = Date.now();
+            document.getElementById('startRecord').disabled = true;
+            document.getElementById('stopRecord').disabled = false;
+            timerInterval = setInterval(updateTimer, 1000);
+            requestAnimationFrame(recordFrame);
+        }
+
+        function recordFrame() {
+            if (!isRecording) return;
+            camera.position.copy(lastCameraPosition);
+            camera.quaternion.copy(lastCameraQuaternion);
+            recordingComposer.render();
+            requestAnimationFrame(recordFrame);
+        }
+
+        function cleanupRecording() {
+            isRecording = false;
+            clearInterval(timerInterval);
+            document.getElementById('timer').textContent = 'Recording: 00:00';
+            document.getElementById('startRecord').disabled = false;
+            document.getElementById('stopRecord').disabled = true;
+            if (recordingRenderer) {
+                recordingRenderer.dispose();
+                recordingRenderer.domElement.remove();
+                recordingRenderer = null;
+            }
+            if (recordingComposer) recordingComposer = null;
+            if (recordingCanvas) {
+                recordingCanvas.remove();
+                recordingCanvas = null;
+            }
+            recordedChunks = [];
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+            mediaRecorder.stop();
+        }
+
+        function onWindowResize() {
+            updateAspectRatio();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateCamera();
+            updateParticles();
+            orbitControls.update();
+            composer.render();
+            if (!isRecording) {
+                lastCameraPosition.copy(camera.position);
+                lastCameraQuaternion.copy(camera.quaternion);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
