@@ -14,7 +14,7 @@ Follow these steps to get GitGrids up and running faster than a particle in a Lo
 1. **Clone the Repo**  
    Grab the code like it’s free candy:
    ```bash
-   git clone https://github.com/your-username/GitGrids.git
+   git clone https://github.com/GitGrids/GitGrids3D.git
    ```
 
 2. **Open the App**  
