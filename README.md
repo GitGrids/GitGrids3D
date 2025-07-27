@@ -18,7 +18,7 @@ Follow these steps to get GitGrids up and running faster than a particle in a Lo
    ```
 
 2. **Open the App**  
-   No fancy setup needed! Just open `3D_audiointeractive_particlevisualizer_V0.2.22_latest.html` in a modern web browser (Chrome, Firefox, or Edge work best). It’s all client-side, so no server nonsense required.
+   No fancy setup needed! Just open `GitGrids3D_V0.2.22.html` in a modern web browser (Chrome, Firefox, or Edge work best). It’s all client-side, so no server nonsense required.
 
 3. **Play with the Controls**  
    The UI is your sandbox. Here’s a quick rundown of what you can do:
